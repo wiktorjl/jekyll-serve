@@ -1,15 +1,44 @@
-# Dockerfile.base
 FROM ruby:3.1-slim-bullseye
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     git \
+    sudo \
+    vim \
     && rm -rf /var/lib/apt/lists/*
 
-RUN gem update --system && gem install jekyll && gem cleanup
+# Accept UID and GID as build arguments
+ARG UID
+ARG GID
+ARG USERNAME=jekyll-user
+
+# Create a group and user with the specified GID and UID
+RUN groupadd --gid $GID $USERNAME && \
+    useradd --uid $UID --gid $GID --create-home $USERNAME && \
+    echo "$USERNAME ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+
+# Set GEM_HOME to a directory the non-root user can write to
+ENV GEM_HOME=/home/$USERNAME/.gem
+ENV PATH=$GEM_HOME/bin:$PATH
+
+# Set permissions
+RUN mkdir /site
+RUN chown -R $USERNAME:$USERNAME /home/$USERNAME
+RUN chown -R $USERNAME:$USERNAME /site
+
+COPY --chown=$USERNAME:$USERNAME Gemfile* ./
+RUN gem update --system && gem install jekyll && gem install bundler --user-install && bundle config set path "$GEM_HOME" && bundle install && gem cleanup
 
 EXPOSE 4000
 
 WORKDIR /site
 
 COPY docker-entrypoint.sh /usr/local/bin/
+
+RUN chown -R $USERNAME:$USERNAME /home/$USERNAME/.gem
+
+# Switch to the new user
+USER $USERNAME
+
+# Ensure VHOST is set correctly
+ENV VHOST=$HOST

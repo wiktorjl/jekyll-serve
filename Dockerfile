@@ -1,7 +1,5 @@
-# Dockerfile
 FROM local-jekyll-base as jekyll
 
-# The rest of your Dockerfile remains the same
 EXPOSE 4000
 
 WORKDIR /site
@@ -16,4 +14,14 @@ FROM jekyll as jekyll-serve
 # on every container start, check if Gemfile exists and warn if it's missing
 ENTRYPOINT [ "docker-entrypoint.sh" ]
 
-CMD [ "bundle", "exec", "jekyll", "serve", "--force_polling", "-H", "0.0.0.0", "-P", "4000" ]
+USER root
+
+RUN chown -R 1000:1000 /site
+
+USER $USERNAME
+
+# Ensure VHOST and PORT environment variables are set correctly
+ENV VHOST=${VHOST:-default_host}
+ENV PORT=${PORT:-4000}
+
+CMD [ "bash", "-c", "bundle exec jekyll serve --force_polling -H $VHOST -P $PORT" ]
